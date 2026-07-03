@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Batch Image Resizer (500KB)</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+<style>
+body{
+    font-family:Arial;
+    background:#f4f4f4;
+    padding:30px;
+}
+
+.container{
+    max-width:900px;
+    margin:auto;
+    background:white;
+    padding:25px;
+    border-radius:12px;
+    box-shadow:0 5px 15px rgba(0,0,0,.15);
+}
+
+h2{
+    margin-top:0;
+}
+
+#drop{
+    border:3px dashed #2196f3;
+    padding:40px;
+    text-align:center;
+    border-radius:10px;
+    margin-bottom:20px;
+    background:#fafafa;
+}
+
+button{
+    padding:10px 20px;
+    margin:10px 5px;
+    border:none;
+    background:#2196f3;
+    color:white;
+    border-radius:6px;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#1976d2;
+}
+
+.item{
+    display:flex;
+    justify-content:space-between;
+    padding:8px;
+    border-bottom:1px solid #ddd;
+}
+
+input[type=number]{
+    width:100px;
+}
+
+.success{
+    color:green;
+}
+</style>
+
+</head>
+<body>
+
+<div class="container">
+
+<h2>📷 Batch Image Resizer (500KB)</h2>
+
+<div id="drop">
+拖曳圖片到這裡<br><br>
+
+<input type="file" id="files" multiple accept="image/*">
+
+</div>
+
+<label>
+Max Width：
+<input type="number" id="maxWidth" value="1920">
+px
+</label>
+
+<br>
+
+<button onclick="processImages()">Resize Images</button>
+
+<button onclick="downloadZip()">Download ZIP</button>
+
+<hr>
+
+<div id="result"></div>
+
+</div>
+
+<script>
+
+let selectedFiles=[];
+let outputFiles=[];
+
+document.getElementById("files").addEventListener("change",e=>{
+    selectedFiles=[...e.target.files];
+    showFiles();
+});
+
+const drop=document.getElementById("drop");
+
+drop.addEventListener("dragover",e=>{
+    e.preventDefault();
+});
+
+drop.addEventListener("drop",e=>{
+    e.preventDefault();
+    selectedFiles=[...e.dataTransfer.files];
+    showFiles();
+});
+
+function showFiles(){
+
+let html="";
+
+selectedFiles.forEach(f=>{
+html+=`<div class='item'>
+<span>${f.name}</span>
+<span>${Math.round(f.size/1024)} KB</span>
+</div>`;
+});
+
+document.getElementById("result").innerHTML=html;
+
+}
+
+async function processImages(){
+
+outputFiles=[];
+
+const maxWidth=parseInt(document.getElementById("maxWidth").value);
+
+for(const file of selectedFiles){
+
+const img=await loadImage(file);
+
+const canvas=document.createElement("canvas");
+
+let w=img.width;
+let h=img.height;
+
+if(w>maxWidth){
+
+h*=maxWidth/w;
+w=maxWidth;
+
+}
+
+canvas.width=w;
+canvas.height=h;
+
+canvas.getContext("2d").drawImage(img,0,0,w,h);
+
+let quality=0.92;
+
+let blob=await canvasToBlob(canvas,quality);
+
+while(blob.size>500*1024 && quality>0.1){
+
+quality-=0.05;
+blob=await canvasToBlob(canvas,quality);
+
+}
+
+outputFiles.push({
+
+name:file.name.replace(/\.[^.]+$/,"")+".jpg",
+
+blob
+
+});
+
+}
+
+let html="";
+
+outputFiles.forEach(f=>{
+
+html+=`
+<div class='item success'>
+<span>${f.name}</span>
+<span>${Math.round(f.blob.size/1024)} KB</span>
+</div>
+`;
+
+});
+
+document.getElementById("result").innerHTML=html;
+
+alert("完成！");
+
+}
+
+function loadImage(file){
+
+return new Promise(resolve=>{
+
+const img=new Image();
+
+img.onload=()=>resolve(img);
+
+img.src=URL.createObjectURL(file);
+
+});
+
+}
+
+function canvasToBlob(canvas,quality){
+
+return new Promise(resolve=>{
+
+canvas.toBlob(resolve,"image/jpeg",quality);
+
+});
+
+}
+
+async function downloadZip(){
+
+if(outputFiles.length==0){
+
+alert("請先Resize圖片");
+
+return;
+
+}
+
+const zip=new JSZip();
+
+outputFiles.forEach(f=>{
+
+zip.file(f.name,f.blob);
+
+});
+
+const content=await zip.generateAsync({type:"blob"});
+
+saveAs(content,"images.zip");
+
+}
+
+</script>
+
+</body>
+</html>
